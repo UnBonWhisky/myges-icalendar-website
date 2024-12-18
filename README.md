@@ -8,7 +8,7 @@ Le code est disponible publiquement, cependant une version publique est disponib
 1. Compiler les 2 Dockerfile disponibles dans les dossiers `website` et `api-python`  
   La commande à taper est `docker build --pull --rm -f "Dockerfile" -t myges-calendar:latest .` pour le website, et `docker build --pull --rm -f "Dockerfile" -t myges-calendar-python:latest .` pour le python
 
-2. Lancer le compose avec `docker compose up -d`
+2. Lancer le compose situé dans le dossier `website` avec `docker compose up -d`
 
 3. Ouvrir les ports ou gérer avec un reverse proxy pour accéder au site depuis l'extérieur. (optionnel)
 
