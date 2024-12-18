@@ -1,0 +1,227 @@
+@import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Quicksand', sans-serif;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: #000;
+  padding: 20px;
+}
+
+.signin {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  background: #222;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  border-radius: 4px;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.9);
+}
+
+.signin .content {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.signin .content h2 {
+  font-size: 2em;
+  color: #219bd5;
+  text-transform: uppercase;
+}
+
+.signin .content .form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.signin .content .form .inputBox {
+  position: relative;
+  width: 100%;
+}
+
+.signin .content .form .inputBox input {
+  width: 100%;
+  background: #333;
+  border: none;
+  outline: none;
+  padding: 25px;
+  border-radius: 4px;
+  color: #fff;
+  font-weight: 500;
+  font-size: 1em;
+}
+
+/* Align the placeholder text */
+.signin .content .form .inputBox input::placeholder {
+  color: #aaa;
+  font-size: 1em;
+}
+
+.signin .content .form .inputBox i {
+  position: absolute;
+  left: 0;
+  padding: 15px 10px;
+  font-style: normal;
+  color: #aaa;
+  transition: 0.5s;
+  pointer-events: none;
+}
+
+.signin .content .form .links {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+}
+
+.signin .content .form .links a {
+  color: #fff;
+  text-decoration: none;
+}
+
+.signin .content .form .links a:nth-child(2) {
+  font-weight: 600;
+}
+
+.signin .content .form .inputBox button {
+  padding: 10px;
+  font-weight: 600;
+  font-size: 1.35em;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  width: 100%;
+  border-radius: 4px;
+}
+
+.button-delete {
+  color: #E6E6E6;
+  background: #ec3030;
+  margin-bottom: 0;
+  font-weight: normal;
+  text-align: center;
+  cursor: pointer;
+  padding: 10px 15px;
+  font-size: 1.2em;
+  border-radius: 4px;
+  width: 100%;
+  border-width: 2px;
+  border: 1px solid transparent;
+}
+
+.button-connect {
+  color: #E6E6E6;
+  background: #217bb2;
+  margin-bottom: 0;
+  font-weight: normal;
+  text-align: center;
+  cursor: pointer;
+  padding: 10px 15px;
+  font-size: 1.2em;
+  border-radius: 4px;
+  width: 100%;
+  border-width: 2px;
+  border: 1px solid transparent;
+}
+
+.multiple-buttons {
+  gap: 16px;
+  display: flex;
+  margin-bottom: 16px;
+}
+
+.button-connect:hover {
+  background: #439BD1;
+  color: #ffffff;
+}
+
+.error-message {
+  background-color: #d1b598;
+  border: 1px solid #d21033;
+  float: left;
+  padding: 20px 30px;
+  color: #d21033;
+  font-weight: bold;
+}
+
+.information-message p {
+  color:#aaa;
+  text-decoration: none;
+  font-size: smaller;
+}
+.information-message a {
+  color:#aaa;
+  text-decoration: underline;
+}
+
+.code-block {
+  align-self: stretch;
+  width: 100%;
+  border-radius: 4px;
+}
+
+.code-block p {
+  background-color: #ddd;
+  border-radius: 4px;
+  color: #000;
+  padding: 10px;
+  white-space: nowrap;
+  overflow-x: auto;
+  font-family: monospace;
+  box-sizing: border-box;
+}
+
+.warning-message {
+  background-color: #d1b598;
+  border: 1px solid #d26e10;
+  float: left;
+  padding: 20px 30px;
+  color: #d26e10;
+  font-weight: bold;
+}
+
+.info-message {
+  background-color: #a5d198;
+  border: 1px solid #155e07;
+  float: left;
+  padding: 20px 30px;
+  color: #155e07;
+  font-weight: bold;
+}
+
+.img-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 100%;
+}
+.img-row a {
+  flex: 1;
+  text-align: center;
+}
+.img-row img {
+  max-width: 100%;
+  height: auto;
+  background-color: #fff;
+  border-radius: 4px;
+}

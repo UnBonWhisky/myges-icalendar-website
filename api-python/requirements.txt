@@ -1,0 +1,7 @@
+httpx
+fastapi[standard]
+aiosqlite
+aiofiles
+icalendar
+uvicorn
+python-dateutil
