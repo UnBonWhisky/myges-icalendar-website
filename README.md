@@ -13,6 +13,9 @@ Le code est disponible publiquement, cependant une version publique est disponib
 3. Ouvrir les ports ou gérer avec un reverse proxy pour accéder au site depuis l'extérieur. (optionnel)
 
 ## Informations complémentaires
+Avec l'aide d'un professeur de l'ESGI, j'ai pu faire des tests et développer une version fonctionnelle pour les professeurs également. Coté API, un champs est vide pour les étudiants, mais présent (si renseigné) pour les professeurs.  
+
+Cette version s'adresse donc à tous, étudiants comme professeurs.  
 
 Je ne suis pas étudiant dans tous les campus du réseau GES donc il est possible que des erreurs soient présentes dans le code.  
 Dans le cas où ça arriverait, merci de m'envoyer un mail avec un maximum d'infos à [contact@unbonwhisky.fr](mailto:contact@unbonwhisky.fr)
