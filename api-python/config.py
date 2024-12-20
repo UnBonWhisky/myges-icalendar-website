@@ -102,7 +102,7 @@ class MyGES_Informations():
         self.basic_auth = None
         self.token = None
         self.expiry_date = None
-        self.proxy = None
+        self.proxy = []
 
         self.setup_proxy_lock = asyncio.Lock()
         self.connect_timeout_loop = 0

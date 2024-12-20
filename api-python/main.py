@@ -217,7 +217,7 @@ async def start_server():
 
 async def main():
     await asyncio.gather(
-        refresh_calendar(),
+        refresh_loop(),
         start_server()
     )
 
