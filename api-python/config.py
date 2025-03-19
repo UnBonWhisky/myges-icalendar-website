@@ -14,25 +14,25 @@ def proxy_handler(func):
         while True:
             try:
                 return await func(self, *args, **kwargs)
-            
+
             except (httpx.ProxyError, httpcore.ProxyError) as e:
                 print(f"=== Proxy Error : {str(e)} ===")
                 await asyncio.sleep(0.1)
-            
+
             except (httpx.ConnectTimeout, httpx.ReadTimeout) as e:
                 current_timeout_loop = self.connect_timeout_loop
                 async with self.setup_proxy_lock :
-                    
+
                     if self.connect_timeout_loop < 3 and current_timeout_loop == self.connect_timeout_loop :
                         print(f"=== {str(type(e).__name__)} : {str(e)} ===")
                         await asyncio.sleep(0.1)
                         self.connect_timeout_loop += 1
-                        
+
                     if self.connect_timeout_loop >= 3 and current_timeout_loop == self.connect_timeout_loop :
                         await self.setup_http_client(reason = str(type(e).__name__), reason_message = str(e))
                         await asyncio.sleep(0.1)
                         self.connect_timeout_loop = 0
-                    
+
     return wrapper
 
 AddressCampus = {
@@ -98,7 +98,7 @@ def is_local_ip(ip: str) -> bool:
 
 class MyGES_Informations():
     def __init__(self, *args, **kwargs):
-        self.client = httpx.AsyncClient()
+        self.client = httpx.AsyncClient(timeout=None)
         self.basic_auth = None
         self.token = None
         self.expiry_date = None
@@ -108,7 +108,7 @@ class MyGES_Informations():
         self.connect_timeout_loop = 0
 
         self.current_credentials = [os.getenv("PROXY_USERNAME"), os.getenv("PROXY_PASSWORD")]
-    
+
     async def setup_http_client(self, reason: str = None, reason_message: str = None):
         """Returns a configured httpx.AsyncClient with optional proxy"""
 
@@ -120,7 +120,7 @@ class MyGES_Informations():
             proxy = random.choice(self.proxy)
             self.proxy.remove(proxy)
 
-        self.client = httpx.AsyncClient(proxy=proxy)
+        self.client = httpx.AsyncClient(proxy=proxy, timeout=None)
         print(f"=== Proxy Setup updated ! New proxy server : {proxy.replace(f'https://{self.current_credentials[0]}:{self.current_credentials[1]}@', '').replace(':89', '')}{' | Reason : ' + reason + ' - ' + reason_message if reason is not None and reason_message is not None else '' } ===")
 
     async def setup_proxy(self):
@@ -147,11 +147,11 @@ class MyGES_Informations():
                             break
 
         return random.sample(proxies, k=50) if proxies else None
-    
+
     @proxy_handler
     async def get_token(self, basic_auth: str):
         """Fetches the OAuth token and processes the response."""
-        
+
         headers = {
             "Authorization": f"Basic {basic_auth}"
         }
@@ -172,10 +172,10 @@ class MyGES_Informations():
             self.basic_auth = basic_auth
 
             return TokenInformations(token=self.token, expiry_date=self.expiry_date, status_code=resp.status_code, expires_in=int(infos["expires_in"]))
-        
+
         else :
             return TokenInformations(token=None, expiry_date=None, status_code=resp.status_code)
-    
+
     async def get_date(self, more_month: int):
         day1 = datetime.datetime.today().replace(day=1, hour=0, minute=0, second=0) + dateutil.relativedelta.relativedelta(months=more_month)
         LastDate = day1.replace(day=28, hour=23, minute=59, second=59) + datetime.timedelta(days=4)
@@ -195,8 +195,11 @@ class MyGES_Informations():
             'user-agent': 'okhttp/3.13.1'
         }
         calendrier = await self.client.get(url, headers=headers, timeout=30)
-        return calendrier.json()
-    
+        try :
+            return calendrier.json()
+        except :
+            return None
+
     @proxy_handler
     async def get_calendar_events(self):
         """Fetches the calendar events and return all classes."""
@@ -205,60 +208,204 @@ class MyGES_Informations():
             day1, LastDay = await self.get_date(month)
             calendrier = await self.get_calendar(day1, LastDay)
 
-            global_calendar.append(calendrier)
-        
+            if calendrier is not None :
+                global_calendar.append(calendrier)
+
         return global_calendar
-    
+
     async def create_events(self, calendrier, ics_file, dtstamp):
         """Creates events from the calendar."""
-        
-        for calendar_event in calendrier["result"]:
+        classes_ids = []
+
+        for i, calendar_event in enumerate(calendrier["result"]):
+            if isinstance(calendar_event, str):
+                return
+
+            # Détection des campus présents dans l'événement
+            campus_list = []
+            if calendar_event.get("rooms") and isinstance(calendar_event["rooms"], list):
+                campus_list = list({ room["campus"] for room in calendar_event["rooms"] })
+
+            # S'il y a plusieurs campus, on boucle sur chacun d'eux
+            if len(campus_list) > 1:
+                for campus in campus_list:
+                    uid_base = f"Class_{calendar_event['reservation_id']}_{campus}"
+                    # Si cet UID a déjà été traité, on passe au campus suivant.
+                    if uid_base in classes_ids:
+                        continue
+
+                    event = Event()
+                    event.add('uid', uid_base)
+                    classes_ids.append(uid_base)
+                    # On sélectionne pour ce campus les salles correspondantes
+                    rooms_for_campus = [room for room in calendar_event["rooms"] if room["campus"] == campus]
+                    room_name = rooms_for_campus[0]["name"] if len(rooms_for_campus) == 1 else f"{len(rooms_for_campus)} salles"
+
+                    summary = f"{calendar_event['name']} - {campus} - {room_name}"
+                    event.add('summary', summary)
+
+                    dtstart = datetime.datetime.fromtimestamp(int(calendar_event["start_date"]) / 1000, tz=datetime.timezone.utc)
+                    event.add('dtstart', dtstart)
+                    dtend = datetime.datetime.fromtimestamp(int(calendar_event["end_date"]) / 1000, tz=datetime.timezone.utc)
+                    event.add('dtend', dtend)
+                    event.add('dtstamp', dtstamp)
+
+                    address = ""
+                    description = ""
+                    is_professor = calendar_event["classes"] not in ["None", None]
+
+                    if is_professor:
+                        classes_info = calendar_event["classes"] if calendar_event["classes"] not in ["None", None] else "Non spécifiées"
+                        description += (f"Classes : {classes_info}\n"
+                                        f"Type de classe : {calendar_event['type']}\n"
+                                        f"Type de présence : {calendar_event['modality']}\n")
+                    else:
+                        student_group_name = calendar_event["discipline"]["student_group_name"]
+                        description += (f"Groupe : {student_group_name}\n"
+                                        f"Type de classe : {calendar_event['type']}\n"
+                                        f"Type de présence : {calendar_event['modality']}\n")
+
+                    # Utilisation de la variable "campus" issue de la boucle
+                    if calendar_event["type"] == "Cours" or calendar_event["type"].startswith("Cours"):
+                        if calendar_event["modality"] == "Présentiel":
+                            if not isinstance(calendar_event["rooms"], list) or not calendar_event["rooms"]:
+                                AddressCampusValue = "En attente de réservation"
+                                description += ('Campus : SALLE NON RÉSERVÉE\n'
+                                                'Adresse : NON DISPONIBLE\n')
+                                address = "En attente de réservation"
+                            else:
+                                try:
+                                    AddressCampusValue = AddressCampus[campus]
+                                except KeyError:
+                                    print(f"========== Campus **{campus}** not found in AddressCampus ==========")
+                                    AddressCampusValue = "NON DISPONIBLE"
+                                description += (f"Campus : {campus}\n"
+                                                f"Salle : {room_name}\n"
+                                                f"Adresse : {AddressCampusValue}\n")
+                                address = AddressCampusValue
+                        elif calendar_event["modality"] == "Distanciel":
+                            AddressCampusValue = f"{calendar_event['type']} à distance"
+                            description += f"Adresse : {AddressCampusValue}\n"
+                            address = AddressCampusValue
+                        else:
+                            AddressCampusValue = "Aucune information disponible"
+                            description += "Adresse : Aucune information disponible\n"
+                            address = AddressCampusValue
+
+                    elif calendar_event["type"] in ["Examen", "Soutenance"]:
+                        if not calendar_event["modality"] and not calendar_event["rooms"]:
+                            AddressCampusValue = "En attente des informations"
+                            description += "Informations indisponibles pour le moment\n"
+                            address = AddressCampusValue
+                        elif isinstance(calendar_event["rooms"], list) and calendar_event["rooms"]:
+                            salles = [room["name"] for room in calendar_event["rooms"] if room["campus"] == campus]
+                            try:
+                                AddressCampusValue = AddressCampus[campus]
+                            except KeyError:
+                                print(f"========== Campus **{campus}** not found in AddressCampus ==========")
+                                AddressCampusValue = "NON DISPONIBLE"
+                            description += (f"Campus : {campus}\n"
+                                            f"Salle{'s' if len(salles) > 1 else ''} : {', '.join(salles)}\n"
+                                            f"Adresse : {AddressCampusValue}\n")
+                            address = AddressCampusValue
+                        elif calendar_event["modality"] and not calendar_event["rooms"]:
+                            if calendar_event["modality"] == "Présentiel":
+                                AddressCampusValue = "En attente des informations"
+                                description += "Informations indisponibles pour le moment\n"
+                                address = AddressCampusValue
+                            else:
+                                AddressCampusValue = f"{calendar_event['type']} à distance"
+                                description += f"Adresse : {AddressCampusValue}\n"
+                                address = AddressCampusValue
+                        else:
+                            AddressCampusValue = "Aucune information disponible"
+                            description += "Adresse : Aucune information disponible\n"
+                            address = AddressCampusValue
+
+                    elif calendar_event["type"] == "Autre":
+                        if calendar_event["modality"] == "Présentiel":
+                            if not isinstance(calendar_event["rooms"], list) or not calendar_event["rooms"]:
+                                AddressCampusValue = "En attente de réservation"
+                                description += ('Campus : SALLE NON RÉSERVÉE\n'
+                                                'Adresse : NON DISPONIBLE\n')
+                                address = "En attente de réservation"
+                            else:
+                                try:
+                                    AddressCampusValue = AddressCampus[campus]
+                                except KeyError:
+                                    print(f"========== Campus **{campus}** not found in AddressCampus ==========")
+                                    AddressCampusValue = "NON DISPONIBLE"
+                                description += (f"Campus : {campus}\n"
+                                                f"Salle : {room_name}\n"
+                                                f"Adresse : {AddressCampusValue}\n")
+                                address = AddressCampusValue
+                        elif calendar_event["modality"] == "Distanciel":
+                            AddressCampusValue = "Cours à distance"
+                            description += f"Adresse : {AddressCampusValue}\n"
+                            address = AddressCampusValue
+                        else:
+                            AddressCampusValue = "Aucune information disponible"
+                            description += "Adresse : Aucune information disponible\n"
+                            address = AddressCampusValue
+                    else:
+                        continue
+
+                    description += "\nUn problème ? Contactez le créateur par mail sur contact@unbonwhisky.fr"
+                    event.add('description', description)
+                    event.add('location', vText(address))
+                    event.add('priority', 5)
+
+                    ics_file.add_component(event)
+                # Après avoir traité chaque campus, on passe à l'événement suivant
+                continue
+
+
+            # Sinon (un seul campus ou pas de rooms), on procède comme dans votre code actuel
+
             event = Event()
-            
-            # UID of the event
-            event.add('uid', f"Class_{calendar_event['reservation_id']}")
-            
-            # Check if it's a professor or student data based on 'classes'
-            is_professor = calendar_event["classes"] != "None"
-            
-            # Construct the summary of the event
+            try:
+                if f"Class_{calendar_event['reservation_id']}" in classes_ids:
+                    event.add('uid', f"Class_{calendar_event['reservation_id']}_{i}")
+                    classes_ids.append(f"Class_{calendar_event['reservation_id']}_{i}")
+                else:
+                    event.add('uid', f"Class_{calendar_event['reservation_id']}")
+                    classes_ids.append(f"Class_{calendar_event['reservation_id']}")
+            except:
+                raise Exception(f"{calendrier['result']}, {type(calendrier['result'])}")
+
+            is_professor = calendar_event["classes"] not in ["None", None]
             campus_name = ""
             if calendar_event["rooms"] and isinstance(calendar_event["rooms"], list):
                 campus_name = calendar_event["rooms"][0]["campus"]
-                room_name = calendar_event["rooms"][0]["name"]
+                room_name = calendar_event["rooms"][0]["name"] if len(calendar_event["rooms"]) == 1 else f"{len(calendar_event['rooms'])} salles"
                 summary = f"{calendar_event['name']} - {campus_name} - {room_name}"
             else:
                 summary = f"{calendar_event['name']} - {calendar_event['discipline']['teacher']}"
-            
+
             event.add('summary', summary)
-            
-            # Timestamp of the event
+
             dtstart = datetime.datetime.fromtimestamp(int(calendar_event["start_date"]) / 1000, tz=datetime.timezone.utc)
             event.add('dtstart', dtstart)
-            
+
             dtend = datetime.datetime.fromtimestamp(int(calendar_event["end_date"]) / 1000, tz=datetime.timezone.utc)
             event.add('dtend', dtend)
-            
+
             event.add('dtstamp', dtstamp)
-            
+
             address = ""
             description = ""
-            
-            # Manage the description and location of the event
+
             if is_professor:
-                # Description for professor version
-                classes_info = calendar_event["classes"] if calendar_event["classes"] != "None" else "Non spécifiées"
+                classes_info = calendar_event["classes"] if calendar_event["classes"] not in ["None", None] else "Non spécifiées"
                 description += (f"Classes : {classes_info}\n"
                                 f"Type de classe : {calendar_event['type']}\n"
                                 f"Type de présence : {calendar_event['modality']}\n")
             else:
-                # Description for student version
                 student_group_name = calendar_event["discipline"]["student_group_name"]
                 description += (f"Groupe : {student_group_name}\n"
                                 f"Type de classe : {calendar_event['type']}\n"
                                 f"Type de présence : {calendar_event['modality']}\n")
-            
-            # Handle room and address information
+
             if calendar_event["type"] == "Cours" or calendar_event["type"].startswith("Cours"):
                 if calendar_event["modality"] == "Présentiel":
                     if not isinstance(calendar_event["rooms"], list) or not calendar_event["rooms"]:
@@ -276,7 +423,6 @@ class MyGES_Informations():
                                         f"Salle : {room_name}\n"
                                         f"Adresse : {AddressCampusValue}\n")
                         address = AddressCampusValue
-
                 elif calendar_event["modality"] == "Distanciel":
                     AddressCampusValue = f"{calendar_event['type']} à distance"
                     description += f"Adresse : {AddressCampusValue}\n"
@@ -291,7 +437,6 @@ class MyGES_Informations():
                     AddressCampusValue = "En attente des informations"
                     description += "Informations indisponibles pour le moment\n"
                     address = AddressCampusValue
-
                 elif isinstance(calendar_event["rooms"], list) and calendar_event["rooms"]:
                     salles = [room["name"] for room in calendar_event["rooms"] if room["campus"] == campus_name]
                     try:
@@ -303,7 +448,6 @@ class MyGES_Informations():
                                     f"Salle{'s' if len(salles) > 1 else ''} : {', '.join(salles)}\n"
                                     f"Adresse : {AddressCampusValue}\n")
                     address = AddressCampusValue
-
                 elif calendar_event["modality"] and not calendar_event["rooms"]:
                     if calendar_event["modality"] == "Présentiel":
                         AddressCampusValue = "En attente des informations"
@@ -345,21 +489,16 @@ class MyGES_Informations():
                     address = AddressCampusValue
             else:
                 continue
-            
-            # Add a generic contact information at the end of the description
+
             description += "\nUn problème ? Contactez le créateur par mail sur contact@unbonwhisky.fr"
 
-            # Add description and location to the event
             event.add('description', description)
             event.add('location', vText(address))
-
-            # Add priority to the event
             event.add('priority', 5)
-
-            # Add the event to the calendar
             ics_file.add_component(event)
 
-            
+
+
     async def write_database(self, username: str, basic_auth: str, api_key: str, token: str, expiry_date: int):
         async with aiosqlite.connect('myges.db') as db:
             await db.execute("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, basic_auth TEXT, api_key TEXT, token TEXT, expiry_date INT, update_time TEXT)")
@@ -378,22 +517,22 @@ class MyGES_Informations():
             else:
                 actual_key = response[2]
                 action = "nothing"
-            
+
             await db.commit()
             await db.close()
-            
+
         return action, actual_key
 
     async def create_calendar(self, global_calendar: list, basepath: str, user: str):
         cal = Calendar()
         cal.add('prodid', '//Made by Flavien FOUQUERAY - contact@unbonwhisky.fr//')
         cal.add('version', '2.0')
-        
+
         dtstamp = datetime.datetime.now(tz=datetime.timezone.utc)
-        
+
         for x in range(len(global_calendar)):
             await self.create_events(global_calendar[x], cal, dtstamp)
-        
+
         async with aiofiles.open(f'{basepath}/{user}.ics', 'wb+') as f:
             await f.write(cal.to_ical())
             await f.close()
